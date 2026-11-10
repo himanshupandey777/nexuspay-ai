@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "ag-grid-community": "^36.3.0",
+    "ag-grid-react": "^36.3.0",
+    "autoprefixer": "^10.6.2",
+    "axios": "^1.21.1",
+    "groq-sdk": "^1.6.0",
+    "lucide-react": "^1.71.0",
+    "postcss": "^8.5.32",
+    "react-hot-toast": "^2.6.1",
+    "tailwindcss": "^4.3.5"
+  }
+}

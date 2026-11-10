@@ -37,10 +37,13 @@ const milestoneSchema = new mongoose.Schema(
       reasoning: String,
       verifiedAt: Date,
     },
-    aiOptimization: {
-      recommendedCurrency: String,
-      estimatedSavings: Number,
-      routingLogic: String,
+    clientOverride: {
+      type: Boolean,
+      default: false,
+    },
+    overrideReason: {
+      type: String,
+      default: '',
     },
     paypalPayoutId: {
       type: String,
