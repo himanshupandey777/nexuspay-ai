@@ -1,0 +1,14 @@
+
+@import "tailwindcss";
+
+/* Global styles */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* AG Grid styling */
+.ag-theme-alpine {
+  --ag-header-background-color: #f8fafc;
+  --ag-odd-row-background-color: #ffffff;
+}

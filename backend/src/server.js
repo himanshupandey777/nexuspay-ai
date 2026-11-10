@@ -1,17 +1,21 @@
 
 import dns from 'node:dns';
+import 'dotenv/config';
+
 import express from 'express';
-import dotenv from 'dotenv';
 import cors from 'cors';
+import mongoose from 'mongoose';
+
 import connectDB from './config/db.js';
+import githubRoutes from './routes/github.js';
+import paymentRoutes from './routes/payments.js';
+import milestoneRoutes from './routes/milestone.js';
 
 // Fix Node.js DNS resolution for MongoDB Atlas
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
-// Load environment variables
-dotenv.config();
-
 const app = express();
+const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
@@ -22,34 +26,50 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check route
+// Root route
 app.get('/', (req, res) => {
   res.json({
     message: '🚀 NexusPay AI Backend is running',
     status: 'success',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
-// API health route
+// API health check
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    database: 'connected',
-    paypal: process.env.PAYPAL_MODE || 'not configured'
+  const dbConnected = mongoose.connection.readyState === 1;
+
+  res.status(dbConnected ? 200 : 503).json({
+    status: dbConnected ? 'healthy' : 'unhealthy',
+    database: dbConnected ? 'connected' : 'disconnected',
+    paypal: process.env.PAYPAL_MODE || 'not configured',
+    groq: process.env.GROQ_API_KEY ? 'configured' : 'not configured',
   });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
+// Register API routes
+app.use('/api/github', githubRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/milestones', milestoneRoutes);
 
-  res.status(500).json({
+// Handle unknown routes
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route not found: ${req.method} ${req.originalUrl}`,
+  });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('❌ Error:', err.stack);
+
+  res.status(err.status || 500).json({
     success: false,
     message: 'Something went wrong!',
     error: process.env.NODE_ENV === 'development'
       ? err.message
-      : undefined
+      : undefined,
   });
 });
 
@@ -58,12 +78,13 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    const PORT = process.env.PORT || 5000;
-
     app.listen(PORT, () => {
       console.log('\n🎯 NexusPay AI Backend');
+      console.log('✅ MongoDB connected');
+      console.log(`🤖 Groq API: ${process.env.GROQ_API_KEY ? 'Configured' : 'Missing'}`);
+      console.log(`💳 PayPal Mode: ${process.env.PAYPAL_MODE || 'Not configured'}`);
       console.log(`✅ Server running on port ${PORT}`);
-      console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`📍 Health check: http://localhost:${PORT}/api/health\n`);
     });
 
