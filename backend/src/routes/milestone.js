@@ -1,4 +1,3 @@
-
 import express from 'express';
 import Milestone from '../models/milestone.js';
 
@@ -6,7 +5,10 @@ import { getFullPullRequestData } from '../services/githubService.js';
 
 import { verifyMilestone } from '../services/aiService.js';
 
-import { createPayout } from '../services/paypalService.js';
+import {
+  createPayout,
+  getPayoutBatchStatus,
+} from '../services/paypalService.js';
 
 const router = express.Router();
 
@@ -359,8 +361,21 @@ router.post('/process', async (req, res) => {
 });
 
 // ==========================================
-// GET ALL MILESTONES
+// GET ALL MILESTONES (syncs pending payouts with PayPal)
 // ==========================================
+
+const PAYPAL_ITEM_STATUS_MAP = {
+  SUCCESS: 'paid',
+  FAILED: 'failed',
+  RETURNED: 'failed',
+  BLOCKED: 'failed',
+  REFUNDED: 'failed',
+  REVERSED: 'failed',
+  DENIED: 'failed',
+  PENDING: 'pending',
+  UNCLAIMED: 'pending',
+  ONHOLD: 'pending',
+};
 
 router.get('/', async (req, res) => {
   try {
@@ -368,6 +383,56 @@ router.get('/', async (req, res) => {
       createdAt: -1,
     });
 
+    // Only milestones with a submitted payout batch can be synced
+    const pendingPayouts = milestones.filter(
+      (m) => m.status === 'pending' && m.paypalPayoutId
+    );
+
+    await Promise.all(
+      pendingPayouts.map(async (milestone) => {
+        try {
+          const payout = await getPayoutBatchStatus(
+            milestone.paypalPayoutId
+          );
+
+          if (!payout.success) {
+            console.error(
+              `Could not sync payout ${milestone.paypalPayoutId}:`,
+              payout.error
+            );
+            return;
+          }
+
+          const itemStatus =
+            payout.data?.items?.[0]?.transaction_status;
+
+          if (!itemStatus) {
+            console.warn(
+              `No item status found for ${milestone._id}`
+            );
+            return;
+          }
+
+          const newStatus = PAYPAL_ITEM_STATUS_MAP[itemStatus];
+
+          if (newStatus && milestone.status !== newStatus) {
+            milestone.status = newStatus;
+            await milestone.save();
+
+            console.log(
+              `✅ Milestone ${milestone._id}: ${itemStatus} → ${newStatus}`
+            );
+          }
+        } catch (err) {
+          console.error(
+            `Payout sync error for ${milestone._id}:`,
+            err.message
+          );
+        }
+      })
+    );
+
+    // Docs were updated in place, so no need to re-query
     return res.json({
       success: true,
       count: milestones.length,
